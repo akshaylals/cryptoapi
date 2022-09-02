@@ -4,11 +4,14 @@ from flask import request, jsonify, abort
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
+from apps.auth.utils import token_required
+
 from . import bp
 from apps.config import CERTIFICATE_DIR
 
 @bp.route('/', methods=['GET'])
-def certificate_get():
+@token_required
+def certificate_get(user):
     response = {}
     if request.args.get('public'):
         file = os.path.join(CERTIFICATE_DIR, request.args.get('public') + '.pub')
@@ -35,7 +38,8 @@ def certificate_get():
     return jsonify({'message': 'specify public key or private key filename'}), 400
 
 @bp.route('/', methods=['POST'])
-def certificate_post():
+@token_required
+def certificate_post(user):
     filename = request.json.get('filename')
     public_exponent = request.json.get('public_exponent', 65537)
     key_size = request.json.get('key_size', 2048)
