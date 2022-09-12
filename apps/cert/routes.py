@@ -1,13 +1,12 @@
 import os
 
 from flask import request, jsonify, abort
-from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives import serialization
+
 
 from apps.auth.utils import token_required
-
 from . import bp
 from apps.config import CERTIFICATE_DIR
+from .utils import createRsa, createEd25519, createEd448, createEC
 
 @bp.route('/', methods=['GET'])
 @token_required
@@ -40,47 +39,34 @@ def certificate_get(user):
 @bp.route('/', methods=['POST'])
 @token_required
 def certificate_post(user):
+    algo = request.json.get('algorithm')
     filename = request.json.get('filename')
-    public_exponent = request.json.get('public_exponent', 65537)
-    key_size = request.json.get('key_size', 2048)
 
     if not filename:
         return jsonify({'message': 'filename not specified'}), 400
-
-    if os.path.exists(os.path.join(CERTIFICATE_DIR, filename)) or os.path.exists(os.path.join(CERTIFICATE_DIR, filename + '.pub')):
-        return jsonify({'message': 'File already exists'}), 400
-
-    private_key = rsa.generate_private_key(
-        public_exponent = public_exponent,
-        key_size = key_size,
-    )
-
-    pem = private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.TraditionalOpenSSL,
-        encryption_algorithm=serialization.NoEncryption()
-    )
-
-    with open(os.path.join(CERTIFICATE_DIR, filename), "wb") as f:
-        f.write(pem)
     
-    public_key = private_key.public_key()
+    if not algo:
+        return jsonify({'message': 'algorithm not specified'}), 400
 
-    pem = public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-
-    with open(os.path.join(CERTIFICATE_DIR, filename + '.pub'), "wb") as f:
-        f.write(pem)
+    match algo:
+        case 'RSA':
+            public_exponent = request.json.get('public_exponent', 65537)
+            key_size = request.json.get('key_size', 2048)
+            response = createRsa(filename, public_exponent, key_size)
+        case 'Ed25519':
+            response = createEd25519(filename)
+            pass
+        case 'Ed448':
+            response = createEd448(filename)
+            pass
+        case 'ECC':
+            curve = request.json.get('curve')
+            if not curve:
+                return jsonify({'message': 'elliptic curve not specified'}), 400
+            response = createEC(filename, curve)
+            pass
     
-    return jsonify({
-        'message': 'success',
-        'certificate': {
-            'private_key_file': filename,
-            'public_key_file': filename + '.pub',
-            'public_exponent': public_exponent,
-            'key_size': key_size
-        }
-    })
+    s = response.pop('status')
+    
+    return jsonify(response), s
 
