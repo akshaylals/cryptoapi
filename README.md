@@ -105,3 +105,17 @@
     "SECT233R1"
     "SECT163R2"
     ```
+
+- Get certificate  
+`GET /certificate`
+
+    Http header:
+    ```http
+    x-access-tokens: <token>
+    ```
+
+    parameters:
+    ```http
+    public: <filename>
+    private: <filename>
+    ````
